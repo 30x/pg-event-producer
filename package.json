@@ -1,0 +1,19 @@
+{
+  "name": "pg-event-producer",
+  "version": "0.0.1",
+  "description": "Store event records in pg and notify consumers\"",
+  "main": "pg-event-producer.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mpnally/pg-event-producer.git"
+  },
+  "author": "Martin Nally",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/mpnally/pg-event-producer/issues"
+  },
+  "homepage": "https://github.com/mpnally/pg-event-producer#readme"
+}
