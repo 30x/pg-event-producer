@@ -15,5 +15,8 @@
   "bugs": {
     "url": "https://github.com/mpnally/pg-event-producer/issues"
   },
-  "homepage": "https://github.com/mpnally/pg-event-producer#readme"
+  "homepage": "https://github.com/mpnally/pg-event-producer#readme",
+  "dependencies": {
+    "http-helper-functions": "0.0.1"
+  }
 }
