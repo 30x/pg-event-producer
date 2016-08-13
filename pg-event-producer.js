@@ -18,11 +18,19 @@ function eventProducer(pool) {
 eventProducer.prototype.init = function(callback) {
   var self = this;
   this.createTablesThen(function () {
-    setInterval(self.getCaches, ONEMINUTE, self);
-    setInterval(self.discardCachesOlderThan, TWOMINUTES, TENMINUTES, self);
-    setInterval(self.discardEventsOlderThan, TENMINUTES, ONEHOUR, self);
-    callback();
+    self.getCaches(self, function () {
+      self.getCacheTimer = setInterval(self.getCaches, ONEMINUTE, self);
+      self.discardCacheTimer = setInterval(self.discardCachesOlderThan, TWOMINUTES, TENMINUTES, self);
+      self.discardEventTimer = setInterval(self.discardEventsOlderThan, TENMINUTES, ONEHOUR, self);
+      callback();
+    });
   });  
+}
+
+eventProducer.prototype.finalize = function() {
+  this.getCacheTimer.unref();
+  this.discardCacheTimer.unref();
+  this.discardEventTimer.unref();
 }
 
 eventProducer.prototype.discardCachesOlderThan = function(interval, self) {
@@ -37,7 +45,7 @@ eventProducer.prototype.discardCachesOlderThan = function(interval, self) {
   });
 }
 
-eventProducer.prototype.getCaches = function(self) {
+eventProducer.prototype.getCaches = function(self, callback) {
   var query = 'SELECT ipaddress FROM consumers';
   var pool = self.pool;
   pool.query(query, function (err, pgResult) {
@@ -46,6 +54,7 @@ eventProducer.prototype.getCaches = function(self) {
     } else {
       self.setConsumers(pgResult.rows.map(row => row.ipaddress));
     }
+    if (callback) {callback();}
   });
 }
 
