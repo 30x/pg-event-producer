@@ -61,11 +61,11 @@ eventProducer.prototype.getCaches = function(self, callback) {
 eventProducer.prototype.discardEventsOlderThan = function(interval, self) {
   var time = Date.now() - interval;
   var pool = self.pool;
-  pool.query(`DELETE FROM events WHERE eventtime < ${time}`, function (err, pgResult) {
+  pool.query(`DELETE FROM events WHERE eventtime < ${time} RETURNING index`, function (err, pgResult) {
     if (err) {
       console.log('discardEventsOlderThan:', `unable to delete old events ${err}`);
     } else {
-      console.log('discardEventsOlderThan:', time);
+      console.log(`discardEventsOlderThan: ${interval} found: ${pgResult.rows.map(row => row.index)}`);
     }
   });
 }
