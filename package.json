@@ -17,6 +17,6 @@
   },
   "homepage": "https://github.com/mpnally/pg-event-producer#readme",
   "dependencies": {
-    "http-helper-functions": "0.0.1"
+    "http-helper-functions": "0.0.2"
   }
 }
