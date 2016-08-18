@@ -28,6 +28,7 @@ eventProducer.prototype.init = function(callback) {
 }
 
 eventProducer.prototype.finalize = function() {
+  console.log('pg-event-producer finalizing');
   this.getCacheTimer.unref();
   this.discardCacheTimer.unref();
   this.discardEventTimer.unref();
@@ -186,8 +187,8 @@ function queryAndStoreEvent(req, res, pool, query, eventTopic, eventData, eventP
                       lib.internalError(res, 'unable to create event');
                     } else {
                       client.query('COMMIT', release);
-                      callback(pgResult, pgEventResult);
                       eventProducer.tellConsumers(req, pgEventResult.rows[0]);
+                      callback(pgResult, pgEventResult);
                     }
                   }
                 });
