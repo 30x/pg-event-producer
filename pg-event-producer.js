@@ -100,9 +100,9 @@ eventProducer.prototype.tellConsumers = function(req, event) {
     let cache = this.consumers[i];
     sendEventThen(req, event, cache, function(err) {
       if (err) {
-        console.log(`failed to send event to ${cache}`);
+        console.log(`failed to send event ${event.index} to ${cache}`);
       } else {
-        console.log(`sent event to ${cache} index: ${event.index}`);
+        console.log(`sent event ${event.index} to ${cache} index: ${event.index}`);
       }
     });
   }
@@ -140,6 +140,9 @@ function sendEventThen(serverReq, event, host, callback) {
   });
   client_req.on('error', function (err) {
     callback(err);
+  });
+  client_req.setTimeout(2000, function() {
+    client_req.abort();
   });
   client_req.write(postData);
   client_req.end();
