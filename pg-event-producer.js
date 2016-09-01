@@ -8,7 +8,7 @@ var TWOMINUTES = 2*60*1000/SPEEDUP;
 var TENMINUTES = 10*60*1000/SPEEDUP;
 var ONEHOUR = 60*60*1000/SPEEDUP;
 
-var PROTOCOL = process.env.PROTOCOL || 'http:';
+var INTERNAL_SCHEME = process.env.INTERNAL_SCHEME || 'http';
 
 function eventProducer(pool) {
   this.pool = pool;
@@ -120,7 +120,7 @@ function sendEventThen(serverReq, event, host, callback) {
   }
   var hostParts = host.split(':');
   var options = {
-    protocol: PROTOCOL,
+    protocol: `${INTERNAL_SCHEME}:`,
     hostname: hostParts[0],
     path: '/events',
     method: 'POST',

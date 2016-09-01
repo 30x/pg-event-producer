@@ -1,6 +1,6 @@
 {
   "name": "pg-event-producer",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Store event records in pg and notify consumers\"",
   "main": "pg-event-producer.js",
   "scripts": {
