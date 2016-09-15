@@ -173,25 +173,30 @@ function queryAndStoreEvent(req, res, pool, query, eventTopic, eventData, eventP
               }
             } else {
               var time = Date.now();
-              var equery = `INSERT INTO events (topic, eventtime, data) 
-                            values ('${eventTopic}', ${time}, '${JSON.stringify(eventData(pgResult))}')
-                            RETURNING *`;
-              // console.log('equery:', equery)
-              client.query(equery, function(err, pgEventResult) {
-                if(err) {
-                  client.query('ROLLBACK', release);
-                  lib.internalError(res, err);
-                } else {
-                  if (pgEventResult.rowcount == 0) {
+              var event = eventData(pgResult)
+              if (event) {
+                var equery = `INSERT INTO events (topic, eventtime, data) 
+                              values ('${eventTopic}', ${time}, '${JSON.stringify(event)}')
+                              RETURNING *`;
+                client.query(equery, function(err, pgEventResult) {
+                  if(err) {
                     client.query('ROLLBACK', release);
-                    lib.internalError(res, 'unable to create event');
+                    lib.internalError(res, err);
                   } else {
-                    client.query('COMMIT', release);
-                    eventProducer.tellConsumers(req, pgEventResult.rows[0]);
-                    callback(pgResult, pgEventResult);
+                    if (pgEventResult.rowcount == 0) {
+                      client.query('ROLLBACK', release);
+                      lib.internalError(res, 'unable to create event');
+                    } else {
+                      client.query('COMMIT', release);
+                      eventProducer.tellConsumers(req, pgEventResult.rows[0]);
+                      callback(pgResult, pgEventResult);
+                    }
                   }
-                }
-              });
+                });
+              } else {
+                client.query('COMMIT', release);
+                callback(pgResult);                
+              }
             }
           });
         }
