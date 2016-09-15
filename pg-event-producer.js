@@ -168,34 +168,30 @@ function queryAndStoreEvent(req, res, pool, query, eventTopic, eventData, eventP
               if (err.code == 23505){
                 lib.duplicate(res, err);
               } else { 
+                console.log(err)
                 lib.badRequest(res, err);
               }
             } else {
-              if (pgResult.rowCount === 0) {
-                client.query('ROLLBACK', release);
-                lib.internalError(res, 'failed create');
-              } else {
-                var time = Date.now();
-                var equery = `INSERT INTO events (topic, eventtime, data) 
-                              values ('${eventTopic}', ${time}, '${JSON.stringify(eventData(pgResult))}')
-                              RETURNING *`;
-                // console.log('equery:', equery)
-                client.query(equery, function(err, pgEventResult) {
-                  if(err) {
+              var time = Date.now();
+              var equery = `INSERT INTO events (topic, eventtime, data) 
+                            values ('${eventTopic}', ${time}, '${JSON.stringify(eventData(pgResult))}')
+                            RETURNING *`;
+              // console.log('equery:', equery)
+              client.query(equery, function(err, pgEventResult) {
+                if(err) {
+                  client.query('ROLLBACK', release);
+                  lib.internalError(res, err);
+                } else {
+                  if (pgEventResult.rowcount == 0) {
                     client.query('ROLLBACK', release);
-                    lib.internalError(res, err);
+                    lib.internalError(res, 'unable to create event');
                   } else {
-                    if (pgEventResult.rowcount == 0) {
-                      client.query('ROLLBACK', release);
-                      lib.internalError(res, 'unable to create event');
-                    } else {
-                      client.query('COMMIT', release);
-                      eventProducer.tellConsumers(req, pgEventResult.rows[0]);
-                      callback(pgResult, pgEventResult);
-                    }
+                    client.query('COMMIT', release);
+                    eventProducer.tellConsumers(req, pgEventResult.rows[0]);
+                    callback(pgResult, pgEventResult);
                   }
-                });
-              }
+                }
+              });
             }
           });
         }
