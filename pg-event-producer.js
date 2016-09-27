@@ -154,7 +154,7 @@ function queryAndStoreEvent(req, res, pool, query, eventTopic, eventData, eventP
   // The converse—creating an update without an event record—could be harmful.
   pool.connect(function(err, client, release) {
     if (err) { 
-      lib.badRequest(res, err);
+      lib.internalError(res, err);
     } else {
       // console.log('query:', query)
       client.query('BEGIN', function(err) {
