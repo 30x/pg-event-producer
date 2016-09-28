@@ -148,28 +148,28 @@ function sendEventThen(serverReq, event, host, callback) {
   client_req.end();
 }
 
-function queryAndStoreEvent(req, res, pool, query, eventTopic, eventData, eventProducer, callback) {
+function queryAndStoreEvent(req, pool, query, eventTopic, eventData, eventProducer, callback) {
   // We use a transaction here, since its PG and we can. In fact it would be OK to create the event record first and then do the update.
   // If the update failed we would have created an unnecessary event record, which is not ideal, but probably harmless.
   // The converse—creating an update without an event record—could be harmful.
   pool.connect(function(err, client, release) {
-    if (err) { 
-      lib.internalError(res, err);
-    } else {
+    if (err)
+      callback(err)
+    else {
       // console.log('query:', query)
       client.query('BEGIN', function(err) {
         if(err) {
           client.query('ROLLBACK', release);
-          lib.internalError(res, err);
+          callback(err)
         } else {
           client.query(query, function(err, pgResult) {
             if(err) {
               client.query('ROLLBACK', release);
-              if (err.code == 23505){
-                lib.duplicate(res, err);
-              } else { 
+              if (err.code == 23505)
+                callback(409)
+              else { 
                 console.log(err)
-                lib.badRequest(res, err);
+                callback(err)
               }
             } else {
               var time = Date.now();
@@ -181,21 +181,21 @@ function queryAndStoreEvent(req, res, pool, query, eventTopic, eventData, eventP
                 client.query(equery, function(err, pgEventResult) {
                   if(err) {
                     client.query('ROLLBACK', release);
-                    lib.internalError(res, err);
+                    callback(err)
                   } else {
                     if (pgEventResult.rowcount == 0) {
                       client.query('ROLLBACK', release);
-                      lib.internalError(res, 'unable to create event');
+                      callback('no event created')
                     } else {
                       client.query('COMMIT', release);
                       eventProducer.tellConsumers(req, pgEventResult.rows[0]);
-                      callback(pgResult, pgEventResult);
+                      callback(null, pgResult, pgEventResult);
                     }
                   }
                 });
               } else {
-                client.query('COMMIT', release);
-                callback(pgResult);                
+                client.query('COMMIT', release)
+                callback(null, pgResult)            
               }
             }
           });
