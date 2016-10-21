@@ -1,6 +1,6 @@
 {
   "name": "pg-event-producer",
-  "version": "0.0.22",
+  "version": "0.0.23",
   "description": "Store event records in pg and notify consumers\"",
   "main": "pg-event-producer.js",
   "scripts": {
@@ -17,6 +17,6 @@
   },
   "homepage": "https://github.com/30x/pg-event-producer#readme",
   "dependencies": {
-    "http-helper-functions": "0.0.44"
+    "http-helper-functions": "0.0.45"
   }
 }
