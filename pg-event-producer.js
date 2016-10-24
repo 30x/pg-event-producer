@@ -95,8 +95,10 @@ eventProducer.prototype.setConsumers = function(consumers) {
   this.consumers = consumers;
 }
 
-eventProducer.prototype.tellConsumers = function(req, event) {
-  for (var i = 0; i < this.consumers.length; i++) {
+eventProducer.prototype.tellConsumers = function(req, event, callback) {
+  var count = 0
+  var total = this.consumers.length
+  for (var i = 0; i < total; i++) {
     let cache = this.consumers[i];
     sendEventThen(req, event, cache, function(err) {
       if (err) {
@@ -104,6 +106,9 @@ eventProducer.prototype.tellConsumers = function(req, event) {
       } else {
         console.log(`sent event ${event.index} to ${cache} index: ${event.index}`);
       }
+      console.log(count, total)
+      if (++count == total)
+        callback() 
     });
   }
 }
@@ -188,8 +193,9 @@ function queryAndStoreEvent(req, pool, query, eventTopic, eventData, eventProduc
                       callback('no event created')
                     } else {
                       client.query('COMMIT', release);
-                      eventProducer.tellConsumers(req, pgEventResult.rows[0]);
-                      callback(null, pgResult, pgEventResult);
+                      eventProducer.tellConsumers(req, pgEventResult.rows[0], function(){
+                        callback(null, pgResult, pgEventResult)
+                      })
                     }
                   }
                 });
