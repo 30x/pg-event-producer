@@ -106,7 +106,6 @@ eventProducer.prototype.tellConsumers = function(req, event, callback) {
       } else {
         console.log(`sent event ${event.index} to ${cache} index: ${event.index}`);
       }
-      console.log(count, total)
       if (++count == total)
         callback() 
     });
