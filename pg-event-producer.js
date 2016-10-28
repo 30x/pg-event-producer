@@ -1,5 +1,4 @@
 'use strict';
-var lib = require('http-helper-functions');
 var http = require('http');
 
 var SPEEDUP = process.env.SPEEDUP || 1;
@@ -134,22 +133,24 @@ function sendEventThen(serverReq, event, host, callback) {
     options.port = hostParts[1];
   }
   var client_req = http.request(options, function (client_res) {
-    lib.getClientResponseBody(client_res, function(body) {
-      if (client_res.statusCode == 200) { 
-        callback(null);
-      } else {
+    client_res.setEncoding('utf8')
+    var body = ''
+    client_res.on('data', chunk => body += chunk)
+    client_res.on('end', function() {
+      if (client_res.statusCode == 200)  
+        callback(null)
+      else 
         callback(`unable to send event to: ${host} statusCode: ${client_res.statusCode}`);
-      }
-    });
-  });
+    })
+  })
   client_req.on('error', function (err) {
-    callback(err);
-  });
+    callback(err)
+  })
   client_req.setTimeout(2000, function() {
-    client_req.abort();
-  });
-  client_req.write(postData);
-  client_req.end();
+    client_req.abort()
+  })
+  client_req.write(postData)
+  client_req.end()
 }
 
 function queryAndStoreEvent(req, pool, query, eventTopic, eventData, eventProducer, callback) {

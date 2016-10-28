@@ -16,7 +16,5 @@
     "url": "https://github.com/30x/pg-event-producer/issues"
   },
   "homepage": "https://github.com/30x/pg-event-producer#readme",
-  "dependencies": {
-    "http-helper-functions": "0.0.55"
-  }
+  "dependencies": {}
 }
