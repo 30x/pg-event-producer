@@ -1,137 +1,134 @@
-'use strict';
-var http = require('http');
+'use strict'
+var http = require('http')
 
-var SPEEDUP = process.env.SPEEDUP || 1;
-var ONEMINUTE = 60*1000/SPEEDUP;
-var TWOMINUTES = 2*60*1000/SPEEDUP;
-var TENMINUTES = 10*60*1000/SPEEDUP;
-var ONEHOUR = 60*60*1000/SPEEDUP;
+var SPEEDUP = process.env.SPEEDUP || 1
+var ONEMINUTE = 60*1000/SPEEDUP
+var TWOMINUTES = 2*60*1000/SPEEDUP
+var TENMINUTES = 10*60*1000/SPEEDUP
+var ONEHOUR = 60*60*1000/SPEEDUP
 
-var INTERNAL_SCHEME = process.env.INTERNAL_SCHEME || 'http';
+var INTERNAL_SCHEME = process.env.INTERNAL_SCHEME || 'http'
 
 function eventProducer(pool) {
-  this.pool = pool;
-  this.consumers = [];
+  this.pool = pool
+  this.consumers = []
 }
 
 eventProducer.prototype.init = function(callback) {
-  var self = this;
+  var self = this
   this.createTablesThen(function () {
     self.getCaches(self, function () {
-      self.getCacheTimer = setInterval(self.getCaches, ONEMINUTE, self);
-      self.discardCacheTimer = setInterval(self.discardCachesOlderThan, TWOMINUTES, TENMINUTES, self);
-      self.discardEventTimer = setInterval(self.discardEventsOlderThan, TENMINUTES, ONEHOUR, self);
-      callback();
-    });
-  });  
+      self.getCacheTimer = setInterval(self.getCaches, ONEMINUTE, self)
+      self.discardCacheTimer = setInterval(self.discardCachesOlderThan, TWOMINUTES, TENMINUTES, self)
+      self.discardEventTimer = setInterval(self.discardEventsOlderThan, TENMINUTES, ONEHOUR, self)
+      callback()
+    })
+  })  
 }
 
 eventProducer.prototype.finalize = function() {
-  console.log('pg-event-producer finalizing');
-  this.getCacheTimer.unref();
-  this.discardCacheTimer.unref();
-  this.discardEventTimer.unref();
+  console.log('pg-event-producer finalizing')
+  this.getCacheTimer.unref()
+  this.discardCacheTimer.unref()
+  this.discardEventTimer.unref()
 }
 
 eventProducer.prototype.discardCachesOlderThan = function(interval, self) {
-  var time = Date.now() - interval;
-  var pool = self.pool;
+  var time = Date.now() - interval
+  var pool = self.pool
   pool.query(`DELETE FROM consumers WHERE registrationtime < ${time}`, function (err, pgResult) {
-    if (err) {
-      console.log('discardCachesOlderThan:', `unable to delete old consumers ${err}`);
-    } else {
+    if (err) 
+      console.log('discardCachesOlderThan:', `unable to delete old consumers ${err}`)
+    else
       console.log('discardCachesOlderThan:', `trimmed consumers older than ${time}`)
-    }
-  });
+  })
 }
 
 eventProducer.prototype.getCaches = function(self, callback) {
-  var query = 'SELECT ipaddress FROM consumers';
-  var pool = self.pool;
+  var query = 'SELECT ipaddress FROM consumers'
+  var pool = self.pool
   pool.query(query, function (err, pgResult) {
-    if (err) {
-      console.log(`unable to retrieve ipaddresses from consumers`);
-    } else {
-      self.setConsumers(pgResult.rows.map(row => row.ipaddress));
-    }
-    if (callback) {callback();}
-  });
+    if (err)
+      console.log(`unable to retrieve ipaddresses from consumers`)
+    else
+      self.setConsumers(pgResult.rows.map(row => row.ipaddress))
+    if (callback) 
+      callback()
+  })
 }
 
 eventProducer.prototype.discardEventsOlderThan = function(interval, self) {
-  var time = Date.now() - interval;
-  var pool = self.pool;
+  var time = Date.now() - interval
+  var pool = self.pool
   pool.query(`DELETE FROM events WHERE eventtime < ${time} RETURNING index`, function (err, pgResult) {
-    if (err) {
-      console.log('discardEventsOlderThan:', `unable to delete old events ${err}`);
-    } else {
-      console.log(`discardEventsOlderThan: ${interval} found: ${pgResult.rows.map(row => row.index)}`);
-    }
-  });
+    if (err)
+      console.log('discardEventsOlderThan:', `unable to delete old events ${err}`)
+    else
+      console.log(`discardEventsOlderThan: ${interval} found: ${pgResult.rows.map(row => row.index)}`)
+  })
 }
 
 eventProducer.prototype.createTablesThen = function(callback) {
-  var query = 'CREATE TABLE IF NOT EXISTS events (index bigserial, topic text, eventtime bigint, data jsonb)';
-  var pool = this.pool;
+  var query = 'CREATE TABLE IF NOT EXISTS events (index bigserial, topic text, eventtime bigint, data jsonb)'
+  var pool = this.pool
   pool.query(query, function(err, pgResult) {
-    if(err) {
-      console.error('error creating events table', err);
-    } else {
-      query = 'CREATE TABLE IF NOT EXISTS consumers (ipaddress text primary key, registrationtime bigint)';
+    if(err)
+      console.error('error creating events table', err)
+    else {
+      query = 'CREATE TABLE IF NOT EXISTS consumers (ipaddress text primary key, registrationtime bigint)'
       pool.query(query, function(err, pgResult) {
-        if(err) {
-          console.error('error creating consumers table', err);
-        } else {
-          callback();
-        }
-      });
+        if(err)
+          console.error('error creating consumers table', err)
+        else
+          callback()
+      })
     }
-  });
+  })
 }
 
 eventProducer.prototype.setConsumers = function(consumers) {
   console.log('setConsumers:', 'consumers:', consumers)
-  this.consumers = consumers;
+  this.consumers = consumers
 }
 
 eventProducer.prototype.tellConsumers = function(req, event, callback) {
   var count = 0
   var total = this.consumers.length
-  for (var i = 0; i < total; i++) {
-    let cache = this.consumers[i];
-    sendEventThen(req, event, cache, function(err) {
-      if (err) {
-        console.log(`failed to send event ${event.index} to ${cache}`);
-      } else {
-        console.log(`sent event ${event.index} to ${cache} index: ${event.index}`);
-      }
-      if (++count == total)
-        callback() 
-    });
-  }
+  if (total > 0)
+    for (var i = 0; i < total; i++) {
+      let cache = this.consumers[i]
+      sendEventThen(req, event, cache, function(err) {
+        if (err)
+          console.log(`failed to send event ${event.index} to ${cache}`)
+        else
+          console.log(`sent event ${event.index} to ${cache} index: ${event.index}`)
+        if (++count == total)
+          callback() 
+      })
+    }
+  else
+    callback()
 }
 
 function sendEventThen(serverReq, event, host, callback) {
-  var postData = JSON.stringify(event);
+  var postData = JSON.stringify(event)
   var headers = {
     'Accept': 'application/json',
     'Content-Type': 'application/json',
     'Content-Length': Buffer.byteLength(postData)
   }
-  if (serverReq.headers.authorization) {
-    headers.authorization = serverReq.headers.authorization; 
-  }
-  var hostParts = host.split(':');
+  if (serverReq.headers.authorization)
+    headers.authorization = serverReq.headers.authorization 
+  var hostParts = host.split(':')
   var options = {
     protocol: `${INTERNAL_SCHEME}:`,
     hostname: hostParts[0],
     path: '/events',
     method: 'POST',
     headers: headers
-  };
-  if (hostParts.length > 1) {
-    options.port = hostParts[1];
   }
+  if (hostParts.length > 1)
+    options.port = hostParts[1]
   var client_req = http.request(options, function (client_res) {
     client_res.setEncoding('utf8')
     var body = ''
@@ -140,7 +137,7 @@ function sendEventThen(serverReq, event, host, callback) {
       if (client_res.statusCode == 200)  
         callback(null)
       else 
-        callback(`unable to send event to: ${host} statusCode: ${client_res.statusCode}`);
+        callback(`unable to send event to: ${host} statusCode: ${client_res.statusCode}`)
     })
   })
   client_req.on('error', function (err) {
@@ -153,23 +150,25 @@ function sendEventThen(serverReq, event, host, callback) {
   client_req.end()
 }
 
-function queryAndStoreEvent(req, pool, query, eventTopic, eventData, eventProducer, callback) {
+eventProducer.prototype.queryAndStoreEvent = function(req, query, eventTopic, eventData, callback) {
   // We use a transaction here, since its PG and we can. In fact it would be OK to create the event record first and then do the update.
   // If the update failed we would have created an unnecessary event record, which is not ideal, but probably harmless.
   // The converse—creating an update without an event record—could be harmful.
+  var pool = this.pool
+  var self = this
   pool.connect(function(err, client, release) {
     if (err)
       callback(err)
-    else {
+    else
       // console.log('query:', query)
       client.query('BEGIN', function(err) {
         if(err) {
-          client.query('ROLLBACK', release);
+          client.query('ROLLBACK', release)
           callback(err)
-        } else {
+        } else
           client.query(query, function(err, pgResult) {
             if(err) {
-              client.query('ROLLBACK', release);
+              client.query('ROLLBACK', release)
               if (err.code == 23505)
                 callback(409)
               else { 
@@ -177,39 +176,35 @@ function queryAndStoreEvent(req, pool, query, eventTopic, eventData, eventProduc
                 callback(err)
               }
             } else {
-              var time = Date.now();
+              var time = Date.now()
               var event = eventData(pgResult)
               if (event) {
                 var equery = `INSERT INTO events (topic, eventtime, data) 
                               values ('${eventTopic}', ${time}, '${JSON.stringify(event)}')
-                              RETURNING *`;
+                              RETURNING *`
                 client.query(equery, function(err, pgEventResult) {
                   if(err) {
-                    client.query('ROLLBACK', release);
+                    client.query('ROLLBACK', release)
                     callback(err)
-                  } else {
+                  } else
                     if (pgEventResult.rowcount == 0) {
-                      client.query('ROLLBACK', release);
+                      client.query('ROLLBACK', release)
                       callback('no event created')
                     } else {
-                      client.query('COMMIT', release);
-                      eventProducer.tellConsumers(req, pgEventResult.rows[0], function(){
+                      client.query('COMMIT', release)
+                      self.tellConsumers(req, pgEventResult.rows[0], function(){
                         callback(null, pgResult, pgEventResult)
                       })
                     }
-                  }
-                });
+                })
               } else {
                 client.query('COMMIT', release)
                 callback(null, pgResult)            
               }
             }
-          });
-        }
-      });
-    }
-  });
+          })
+      })
+  })
 }
 
-exports.queryAndStoreEvent=queryAndStoreEvent;
-exports.eventProducer=eventProducer;
+exports.eventProducer=eventProducer
