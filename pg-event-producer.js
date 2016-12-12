@@ -94,7 +94,8 @@ eventProducer.prototype.setConsumers = function(consumers) {
 eventProducer.prototype.tellConsumers = function(req, event, callback) {
   var count = 0
   var total = this.consumers.length
-  if (total > 0)
+  if (total > 0) {
+    var responded = false
     for (var i = 0; i < total; i++) {
       let cache = this.consumers[i]
       sendEventThen(req, event, cache, function(err) {
@@ -102,11 +103,19 @@ eventProducer.prototype.tellConsumers = function(req, event, callback) {
           console.log(`failed to send event ${event.index} to ${cache}`)
         else
           console.log(`sent event ${event.index} to ${cache} index: ${event.index}`)
-        if (++count == total)
-          callback() 
+        if (++count == total && !responded) {
+          responded = true
+          callback()
+        }
       })
     }
-  else
+    setTimeout(function() { // don't wait more than 50ms for listeners 
+      if (!responded) {
+        responded = true 
+        callback()
+      }
+    }, 50)
+  } else
     callback()
 }
 
