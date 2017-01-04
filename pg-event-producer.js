@@ -17,9 +17,9 @@ function eventProducer(pool) {
 eventProducer.prototype.init = function(callback) {
   var self = this
   this.createTablesThen(function () {
-    self.getCaches(self, function () {
-      self.getCacheTimer = setInterval(self.getCaches, ONEMINUTE, self)
-      self.discardCacheTimer = setInterval(self.discardCachesOlderThan, TWOMINUTES, TENMINUTES, self)
+    self.getListeners(self, function () {
+      self.getListenerTimer = setInterval(self.getListeners, ONEMINUTE, self)
+      self.discardListenerTimer = setInterval(self.discardListenersOlderThan, TWOMINUTES, TENMINUTES, self)
       self.discardEventTimer = setInterval(self.discardEventsOlderThan, TENMINUTES, ONEHOUR, self)
       callback()
     })
@@ -28,23 +28,23 @@ eventProducer.prototype.init = function(callback) {
 
 eventProducer.prototype.finalize = function() {
   console.log('pg-event-producer finalizing')
-  this.getCacheTimer.unref()
-  this.discardCacheTimer.unref()
+  this.getListenerTimer.unref()
+  this.discardListenerTimer.unref()
   this.discardEventTimer.unref()
 }
 
-eventProducer.prototype.discardCachesOlderThan = function(interval, self) {
+eventProducer.prototype.discardListenersOlderThan = function(interval, self) {
   var time = Date.now() - interval
   var pool = self.pool
   pool.query(`DELETE FROM consumers WHERE registrationtime < ${time}`, function (err, pgResult) {
     if (err) 
-      console.log('discardCachesOlderThan:', `unable to delete old consumers ${err}`)
+      console.log('discardListenersOlderThan:', `unable to delete old consumers ${err}`)
     else
-      console.log('discardCachesOlderThan:', `trimmed consumers older than ${time}`)
+      console.log('discardListenersOlderThan:', `trimmed consumers older than ${time}`)
   })
 }
 
-eventProducer.prototype.getCaches = function(self, callback) {
+eventProducer.prototype.getListeners = function(self, callback) {
   var query = 'SELECT ipaddress FROM consumers'
   var pool = self.pool
   pool.query(query, function (err, pgResult) {
@@ -97,12 +97,12 @@ eventProducer.prototype.tellConsumers = function(req, event, callback) {
   if (total > 0) {
     var responded = false
     for (var i = 0; i < total; i++) {
-      let cache = this.consumers[i]
-      sendEventThen(req, event, cache, function(err) {
+      let listener = this.consumers[i]
+      sendEventThen(req, event, listener, function(err) {
         if (err)
-          console.log(`failed to send event ${event.index} to ${cache}`)
+          console.log(`failed to send event ${event.index} to ${listener} err: ${err}`)
         else
-          console.log(`sent event ${event.index} to ${cache} index: ${event.index}`)
+          console.log(`sent event ${event.index} to ${listener} index: ${event.index}`)
         if (++count == total && !responded) {
           responded = true
           callback()
