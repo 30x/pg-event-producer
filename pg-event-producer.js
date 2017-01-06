@@ -1,5 +1,6 @@
 'use strict'
 var http = require('http')
+var keepAliveAgent = new http.Agent({ keepAlive: true });
 
 var SPEEDUP = process.env.SPEEDUP || 1
 var ONEMINUTE = 60*1000/SPEEDUP
@@ -134,7 +135,8 @@ function sendEventThen(serverReq, event, host, callback) {
     hostname: hostParts[0],
     path: '/events',
     method: 'POST',
-    headers: headers
+    headers: headers,
+    agent: keepAliveAgent
   }
   if (hostParts.length > 1)
     options.port = hostParts[1]
