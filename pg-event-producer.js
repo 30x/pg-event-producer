@@ -4,10 +4,11 @@ var keepAliveAgent = new http.Agent({ keepAlive: true });
 
 var SPEEDUP = process.env.SPEEDUP || 1
 var ONEMINUTE = 60*1000/SPEEDUP
-var TWOMINUTES = 2*60*1000/SPEEDUP
-var TENMINUTES = 10*60*1000/SPEEDUP
-var ONEHOUR = 60*60*1000/SPEEDUP
-var ONEYEAR = 365*24*60*60*1000/SPEEDUP
+var TWOMINUTES = 2*ONEMINUTE
+var TENMINUTES = 10*ONEMINUTE
+var ONEHOUR = 60*ONEMINUTE
+var ONEDAY = 24*ONEHOUR
+var ONEYEAR = 365*ONEDAY
 
 var INTERNAL_SCHEME = process.env.INTERNAL_SCHEME || 'http'
 
@@ -22,7 +23,7 @@ eventProducer.prototype.init = function(callback) {
     self.getListeners(self, function () {
       self.getListenerTimer = setInterval(self.getListeners, ONEMINUTE, self)
       self.discardListenerTimer = setInterval(self.discardListenersOlderThan, TWOMINUTES, TENMINUTES, self)
-      self.discardEventTimer = setInterval(self.discardEventsOlderThan, TENMINUTES, ONEYEAR, self)
+      self.discardEventTimer = setInterval(self.discardEventsOlderThan, ONEDAY, ONEYEAR, self)
       callback()
     })
   })  
