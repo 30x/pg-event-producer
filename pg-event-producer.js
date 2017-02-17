@@ -7,6 +7,7 @@ var ONEMINUTE = 60*1000/SPEEDUP
 var TWOMINUTES = 2*60*1000/SPEEDUP
 var TENMINUTES = 10*60*1000/SPEEDUP
 var ONEHOUR = 60*60*1000/SPEEDUP
+var ONEYEAR = 365*24*60*60*1000/SPEEDUP
 
 var INTERNAL_SCHEME = process.env.INTERNAL_SCHEME || 'http'
 
@@ -21,7 +22,7 @@ eventProducer.prototype.init = function(callback) {
     self.getListeners(self, function () {
       self.getListenerTimer = setInterval(self.getListeners, ONEMINUTE, self)
       self.discardListenerTimer = setInterval(self.discardListenersOlderThan, TWOMINUTES, TENMINUTES, self)
-      self.discardEventTimer = setInterval(self.discardEventsOlderThan, TENMINUTES, ONEHOUR, self)
+      self.discardEventTimer = setInterval(self.discardEventsOlderThan, TENMINUTES, ONEYEAR, self)
       callback()
     })
   })  
