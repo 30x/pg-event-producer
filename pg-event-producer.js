@@ -163,7 +163,7 @@ function sendEventThen(serverReq, event, host, callback) {
   client_req.end()
 }
 
-eventProducer.prototype.queryAndStoreEvent = function(req, query, eventTopic, eventData, callback) {
+eventProducer.prototype.queryAndStoreEvent = function(req, query, queryArgs, eventTopic, eventData, callback) {
   // We use a transaction here, since its PG and we can. In fact it would be OK to create the event record first and then do the update.
   // If the update failed we would have created an unnecessary event record, which is not ideal, but probably harmless.
   // The converse—creating an update without an event record—could be harmful.
@@ -179,7 +179,7 @@ eventProducer.prototype.queryAndStoreEvent = function(req, query, eventTopic, ev
           client.query('ROLLBACK', release)
           callback(err)
         } else
-          client.query(query, function(err, pgResult) {
+          client.query(query, queryArgs, function(err, pgResult) {
             if(err) {
               client.query('ROLLBACK', release)
               if (err.code == 23505)
@@ -193,9 +193,9 @@ eventProducer.prototype.queryAndStoreEvent = function(req, query, eventTopic, ev
               var event = eventData(pgResult)
               if (event) {
                 var equery = `INSERT INTO events (topic, eventtime, data) 
-                              values ('${eventTopic}', ${time}, '${JSON.stringify(event)}')
+                              values ($1, $2, $3)
                               RETURNING *`
-                client.query(equery, function(err, pgEventResult) {
+                client.query(equery, [eventTopic, time, JSON.stringify(event)], function(err, pgEventResult) {
                   if(err) {
                     client.query('ROLLBACK', release)
                     callback(err)
