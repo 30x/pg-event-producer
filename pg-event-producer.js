@@ -135,7 +135,7 @@ function sendEventThen(serverReq, event, host, callback) {
   var options = {
     protocol: `${INTERNAL_SCHEME}:`,
     hostname: hostParts[0],
-    path: '/events',
+    path: '/az-events',
     method: 'POST',
     headers: headers,
     agent: keepAliveAgent
