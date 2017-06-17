@@ -181,7 +181,16 @@ eventProducer.prototype.queryAndStoreEvent = function(req, query, queryArgs, eve
         } else
           client.query(query, queryArgs, function(err, pgResult) {
             if(err) {
-              client.query('ROLLBACK', release)
+              client.query('ROLLBACK', (rollback_err) => {
+                if (err) {
+                  this.log(`error on transaction COMMIT: ${JSON.stringify(err)}`)
+                  release(err)
+                  callback(err)
+                } else {
+                  release()
+                  callback('no event created')
+                }
+              })
               if (err.code == 23505)
                 callback(409)
               else { 
@@ -197,23 +206,43 @@ eventProducer.prototype.queryAndStoreEvent = function(req, query, queryArgs, eve
                               RETURNING *`
                 client.query(equery, [eventTopic, time, JSON.stringify(event)], function(err, pgEventResult) {
                   if(err) {
-                    client.query('ROLLBACK', release)
-                    callback(err)
+                    client.query('ROLLBACK', (rollbackEerror) => {
+                      if (rollbackEerror) {
+                        this.log(`error on transaction ROLLBACK: ${JSON.stringify(err)}`)
+                        release(rollbackEerror)
+                        callback(err)
+                      } else {
+                        release()
+                        callback(err)
+                      }
+                    })
                   } else
-                    if (pgEventResult.rowcount == 0) {
-                      client.query('ROLLBACK', release)
-                      callback('no event created')
-                    } else {
-                      client.query('COMMIT', release)
-                      self.tellConsumers(req, pgEventResult.rows[0], function(){
-                        callback(null, pgResult, pgEventResult)
-                      })
-                    }
+                    client.query('COMMIT', (err) => {
+                      if (err) {
+                        this.log(`error on transaction COMMIT: ${JSON.stringify(err)}`)
+                        release(err)
+                        callback(err)
+                      } else {
+                        release()
+                        self.tellConsumers(req, pgEventResult.rows[0], function(){
+                          callback(null, pgResult, pgEventResult)
+                        })
+                      }
+                    })
                 })
-              } else {
-                client.query('COMMIT', release)
-                callback(null, pgResult)            
-              }
+              } else
+                client.query('COMMIT', (err) => {
+                  if (err) {
+                    this.log(`error on transaction COMMIT: ${JSON.stringify(err)}`)
+                    release(err)
+                    callback(err)
+                  } else {
+                    release()
+                    self.tellConsumers(req, pgEventResult.rows[0], function(){
+                      callback(null, pgResult)
+                    })
+                  }
+                })
             }
           })
       })
