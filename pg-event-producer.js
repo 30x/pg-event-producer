@@ -126,8 +126,8 @@ function sendEventThen(serverReq, event, host, callback) {
   var postData = JSON.stringify(event)
   var headers = {
     'Accept': 'application/json',
-    'Content-Type': 'application/json',
-    'Content-Length': Buffer.byteLength(postData)
+    'content-type': 'application/json',
+    'content-length': Buffer.byteLength(postData)
   }
   if (serverReq.headers.authorization)
     headers.authorization = serverReq.headers.authorization 
