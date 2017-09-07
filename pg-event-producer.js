@@ -183,7 +183,7 @@ eventProducer.prototype.queryAndStoreEvent = function(req, query, queryArgs, eve
             if(err) {
               client.query('ROLLBACK', (rollback_err) => {
                 if (err) {
-                  this.log(`error on transaction COMMIT: ${JSON.stringify(err)}`)
+                  console.log(`error on transaction COMMIT: ${JSON.stringify(err)}`)
                   release(err)
                   callback(err)
                 } else {
@@ -208,7 +208,7 @@ eventProducer.prototype.queryAndStoreEvent = function(req, query, queryArgs, eve
                   if(err) {
                     client.query('ROLLBACK', (rollbackEerror) => {
                       if (rollbackEerror) {
-                        this.log(`error on transaction ROLLBACK: ${JSON.stringify(err)}`)
+                        console.log(`error on transaction ROLLBACK: ${JSON.stringify(err)}`)
                         release(rollbackEerror)
                         callback(err)
                       } else {
@@ -219,7 +219,7 @@ eventProducer.prototype.queryAndStoreEvent = function(req, query, queryArgs, eve
                   } else
                     client.query('COMMIT', (err) => {
                       if (err) {
-                        this.log(`error on transaction COMMIT: ${JSON.stringify(err)}`)
+                        console.log(`error on transaction COMMIT: ${JSON.stringify(err)}`)
                         release(err)
                         callback(err)
                       } else {
@@ -233,7 +233,7 @@ eventProducer.prototype.queryAndStoreEvent = function(req, query, queryArgs, eve
               } else
                 client.query('COMMIT', (err) => {
                   if (err) {
-                    this.log(`error on transaction COMMIT: ${JSON.stringify(err)}`)
+                    console.log(`error on transaction COMMIT: ${JSON.stringify(err)}`)
                     release(err)
                     callback(err)
                   } else {
