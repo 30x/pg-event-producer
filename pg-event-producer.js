@@ -76,7 +76,10 @@ eventProducer.prototype.createTablesThen = function(callback) {
   var pool = this.pool
   pool.query(query, function(err, pgResult) {
     if(err)
-      console.error('error creating events table', err)
+      if (err == 23505)
+        callback()
+      else
+        console.error('error creating events table', err)
     else {
       query = 'CREATE TABLE IF NOT EXISTS consumers (ipaddress text primary key, registrationtime bigint)'
       pool.query(query, function(err, pgResult) {
