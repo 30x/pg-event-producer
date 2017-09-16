@@ -1,6 +1,6 @@
 {
   "name": "@apigee/pg-event-producer",
-  "version": "0.0.41",
+  "version": "0.0.42",
   "description": "Store event records in pg and notify consumers\"",
   "main": "pg-event-producer.js",
   "scripts": {
