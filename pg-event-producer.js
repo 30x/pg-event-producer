@@ -150,7 +150,7 @@ function sendEventThen(serverReq, event, host, callback) {
       if (client_res.statusCode == 200)  
         callback(null)
       else 
-        callback(`unable to send event to: ${host} statusCode: ${client_res.statusCode}`)
+        callback(`unable to send event to: ${host} statusCode: ${client_res.statusCode} body: ${body}`)
     })
   })
   client_req.on('error', function (err) {
