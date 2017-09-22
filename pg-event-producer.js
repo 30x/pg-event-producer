@@ -103,9 +103,9 @@ eventProducer.prototype.tellConsumers = function(req, event, callback) {
       let listener = this.consumers[i]
       sendEventThen(req, event, listener, function(err) {
         if (err)
-          console.log(`failed to send event ${event.index} to ${listener} err: ${err}`)
+          console.log(`component: ${process.env.COMPONENT_NAME}, failed to send event ${event.index} to ${listener} err: ${err}`)
         else
-          console.log(`sent event ${event.index} to ${listener} index: ${event.index}`)
+          console.log(`component: ${process.env.COMPONENT_NAME}, sent event ${event.index} to ${listener} index: ${event.index}`)
         if (++count == total && !responded) {
           responded = true
           callback()
@@ -183,7 +183,7 @@ eventProducer.prototype.queryAndStoreEvent = function(req, query, queryArgs, eve
             if(err) {
               client.query('ROLLBACK', (rollback_err) => {
                 if (err) {
-                  console.log(`error on transaction COMMIT: ${JSON.stringify(err)}`)
+                  console.log(`component: ${process.env.COMPONENT_NAME}, error on transaction COMMIT: ${JSON.stringify(err)}`)
                   release(err)
                   callback(err)
                 } else {
@@ -208,7 +208,7 @@ eventProducer.prototype.queryAndStoreEvent = function(req, query, queryArgs, eve
                   if(err) {
                     client.query('ROLLBACK', (rollbackEerror) => {
                       if (rollbackEerror) {
-                        console.log(`error on transaction ROLLBACK: ${JSON.stringify(err)}`)
+                        console.log(component: ${process.env.COMPONENT_NAME}, `error on transaction ROLLBACK: ${JSON.stringify(err)}`)
                         release(rollbackEerror)
                         callback(err)
                       } else {
@@ -219,7 +219,7 @@ eventProducer.prototype.queryAndStoreEvent = function(req, query, queryArgs, eve
                   } else
                     client.query('COMMIT', (err) => {
                       if (err) {
-                        console.log(`error on transaction COMMIT: ${JSON.stringify(err)}`)
+                        console.log(`component: ${process.env.COMPONENT_NAME}, error on transaction COMMIT: ${JSON.stringify(err)}`)
                         release(err)
                         callback(err)
                       } else {
@@ -233,7 +233,7 @@ eventProducer.prototype.queryAndStoreEvent = function(req, query, queryArgs, eve
               } else
                 client.query('COMMIT', (err) => {
                   if (err) {
-                    console.log(`error on transaction COMMIT: ${JSON.stringify(err)}`)
+                    console.log(`component: ${process.env.COMPONENT_NAME}, error on transaction COMMIT: ${JSON.stringify(err)}`)
                     release(err)
                     callback(err)
                   } else {
