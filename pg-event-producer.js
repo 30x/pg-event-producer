@@ -208,7 +208,7 @@ eventProducer.prototype.queryAndStoreEvent = function(req, query, queryArgs, eve
                   if(err) {
                     client.query('ROLLBACK', (rollbackEerror) => {
                       if (rollbackEerror) {
-                        console.log(component: ${process.env.COMPONENT_NAME}, `error on transaction ROLLBACK: ${JSON.stringify(err)}`)
+                        console.log(`component: ${process.env.COMPONENT_NAME}, error on transaction ROLLBACK: ${JSON.stringify(err)}`)
                         release(rollbackEerror)
                         callback(err)
                       } else {
