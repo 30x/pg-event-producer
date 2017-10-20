@@ -311,7 +311,7 @@ eventProducer.prototype.updateResourceThen = function(req, errorHandler, subject
   })
 }
 
-eventProducer.prototype.insrtResource = function(errorHandler, client, release, id, record, etag, callback) {
+eventProducer.prototype.insertResource = function(errorHandler, client, release, id, record, etag, callback) {
   var query = `INSERT INTO "${this.tableName}" (${this.idColumnName}, etag, data) values ($1, $2, $3)`
   let recordString = JSON.stringify(record)
   if (recordString.length > MAX_RECORD_SIZE) 
@@ -337,9 +337,9 @@ eventProducer.prototype.createResourceThen = function(req, errorHandler, resourc
       // The following line is a critical line. It ensures that the resource stored on disk includes the
       // event index of the corresponding audit event. This allows clients to know reliably whether
       // one version of the resource is more or less recent than any other version.
-      resource.eventSequenceNumber = changeEvent.sequenceNumber
+      resource.eventSequenceNumber = eventSequenceNumber
       resource.etag = `e${(++eventSequenceNumber).toString()}`
-      this.insrtResource(errorHandler, client, release, resourceID, resource, resource.etag, () => {
+      this.insertResource(errorHandler, client, release, resourceID, resource, resource.etag, () => {
         this.commitTransaction(client, release, (err) => {
           this.tellConsumers(req, eventRecord, function(){
             callback(eventRecord)
