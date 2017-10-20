@@ -1,6 +1,9 @@
 'use strict'
-var http = require('http')
-var keepAliveAgent = new http.Agent({ keepAlive: true });
+const http = require('http')
+const util = require('util')
+const rLib = require('@apigee/response-helper-functions')
+const lib = require('@apigee/http-helper-functions')
+const keepAliveAgent = new http.Agent({ keepAlive: true });
 
 var SPEEDUP = process.env.SPEEDUP || 1
 var ONEMINUTE = 60*1000/SPEEDUP
@@ -12,9 +15,17 @@ var ONEYEAR = 365*ONEDAY
 
 var INTERNAL_SCHEME = process.env.INTERNAL_SCHEME || 'http'
 
-function eventProducer(pool) {
+const MAX_RECORD_SIZE = process.env.MAX_RECORD_SIZE || 1e5
+
+function eventProducer(pool, tableName, idColumnName) {
   this.pool = pool
   this.consumers = []
+  this.tableName = tableName
+  this.idColumnName = idColumnName
+}
+
+ eventProducer.prototype.log = function(method, err) {
+  console.log((new Date).toISOString(), this.componentName, method, util.inspect(err, false, null))
 }
 
 eventProducer.prototype.init = function(callback) {
@@ -163,6 +174,210 @@ function sendEventThen(serverReq, event, host, callback) {
   client_req.end()
 }
 
+ eventProducer.prototype.beginTransaction = function(errorHandler, callback) {
+  let pool = this.pool
+  pool.connect(function(err, client, release) {
+    if (err)
+      rLib.internalError(errorHandler, {msg: `unable to get postgres connection`, err: err, time: time})
+    else
+      client.query('BEGIN', function(err) {
+        if(err) {
+          client.query('ROLLBACK', release)
+          rLib.internalError(errorHandler, {msg: `unable to beginTransaction postgres transaction`, err: err})
+        } else 
+          callback(client, release)
+      })
+  })
+}
+
+ eventProducer.prototype.commitTransaction = function(client, release, callback) {
+  client.query('COMMIT', (err) => {
+    if (err) {
+      this.log(`error on transaction COMMIT: ${JSON.stringify(err)}`)
+      release(err)
+      callback(err)
+    } else {
+      release()
+      callback()
+    }
+  })
+}
+
+ eventProducer.prototype.rollbackTransaction = function(client, release, callback) {
+  client.query('ROLLBACK',  (err) => {
+    if (err) {
+      this.log(`error on transaction ROLLBACK: ${JSON.stringify(err)}`)
+      release(err)
+      callback(err)
+    } else {
+      release()
+      callback()
+    }
+  })
+  callback()
+}
+
+ eventProducer.prototype.executeInTransaction = function(errorHandler, client, release, query, params, callback) {
+  if (typeof params == 'function')
+    [params, callback] = [undefined, params]
+  client.query(query, params, (err, pgResult) => {
+    if(err)
+      this.rollbackTransaction(client, release, () => {
+        if (err.code == 23505) {
+          var errMsg = `duplicate key value violates unique constraint ${err.constraint}`
+          this.log(errMsg)
+          rLib.duplicate(errorHandler, {msg: errMsg})
+        } else { 
+          var errRslt = {msg: `unable to execute write query`, query: query, err: err, params: params}
+          this.log('pg-storage:executeWriteQuery', errRslt)
+          rLib.internalError(errorHandler, errRslt)
+        }
+      })
+    else
+      callback(pgResult)
+  })
+}
+
+eventProducer.prototype.selectForUpdateDo = function(errorHandler, client, release, id, ifMatch, callback) {
+  var query, params
+  if (ifMatch) {
+    query = `SELECT data, "${this.idColumnName}" as id FROM "${this.tableName}" WHERE "${this.idColumnName}" = $1 AND etag = $2 FOR UPDATE`  
+    params = [id, ifMatch]
+  } else {
+    query = `SELECT data FROM "${this.tableName}" WHERE id = $1 FOR UPDATE`
+    params = [id]
+  }
+  this.executeInTransaction(errorHandler, client, release, query, params, pgResult => {
+    if (pgResult.rowCount == 1)
+      callback(pgResult.rows[0].data, pgResult.rows[0].id, pgResult.rows[0].etag)
+    else
+      this.rollbackTransaction(client, release, () => {
+        rLib.notFound(errorHandler, {msg: `resource with id ${id} and etag ${ifMatch} does not exist`})
+      })
+  })
+}
+
+eventProducer.prototype.updateRecord = function(errorHandler, client, release, id, record, etag, ifMatch, callback) {
+  var query
+  var recordString = JSON.stringify(record)
+  if (recordString.length > MAX_RECORD_SIZE) 
+    rLib.badRequest(errorHandler, {msg: `size of patched resource may not exceed ${MAX_RECORD_SIZE}`})
+  else
+    query = `UPDATE "${this.tableName}" SET (etag, data) = ($1, $2) WHERE "${this.idColumnName}" = $3 AND etag = $4`
+    this.executeInTransaction(errorHandler, client, release, query, [etag, recordString, id, ifMatch], pgResult => {
+      if (pgResult.rowCount == 1)
+        callback(record.etag)    
+      else
+        this.rollbackTransaction(client, release, function() {
+          rLib.notFound(errorHandler, {msg: `resource with id ${id} and etag ${ifMatch} does not exist`})
+        })
+    })
+}
+
+eventProducer.prototype.insertAuditEvent = function(errorHandler, client, release, eventTopic, changeEvent, callback) {
+  changeEvent.time = Date.now()
+  let changeEventString = JSON.stringify(changeEvent)
+  var query = `INSERT INTO events (topic, eventtime, data) values ($1, $2, $3) RETURNING *`
+  this.executeInTransaction(errorHandler, client, release, query, [eventTopic, changeEvent.time, changeEventString], (pgResult) => {
+    if (pgResult.rowCount == 1) {
+      callback(pgResult.rows[0])    
+    } else
+      this.rollbackTransaction(client, release, function() {
+        rLib.notFound(errorHandler, {msg: 'could not insert event record'})
+      })
+  })
+}
+
+eventProducer.prototype.updateResourceThen = function(req, errorHandler, subject, resource, ifMatch, previous, eventTopic, changeEvent, callback) {
+  this.beginTransaction(errorHandler, (client, release) => {
+    changeEvent.time = new Date().toISOString()
+    resource.modifier = lib.getUserFromReq(req)
+    resource.modified = changeEvent.time
+    this.insertAuditEvent(errorHandler, client, release, eventTopic, changeEvent, (eventRecord) => {
+      let eventSequenceNumber = eventRecord.index
+      // The following line is a critical line. It ensures that the resource stored on disk includes the
+      // event index of the corresponding audit event. This allows clients to know reliably whether
+      // one version of the resource is more or less recent than any other version.
+      resource.eventSequenceNumber = eventSequenceNumber
+      resource.etag = `e${(++eventSequenceNumber).toString()}`
+      this.updateRecord(errorHandler, client, release, subject, resource, resource.etag, ifMatch, () => {
+        this.commitTransaction(client, release, (err) => {
+          this.tellConsumers(req, eventRecord, function(){
+            callback(eventRecord)
+          })
+        })
+      })
+    })
+  })
+}
+
+eventProducer.prototype.insrtResource = function(errorHandler, client, release, id, record, etag, callback) {
+  var query = `INSERT INTO "${this.tableName}" (${this.idColumnName}, etag, data) values ($1, $2, $3)`
+  let recordString = JSON.stringify(record)
+  if (recordString.length > MAX_RECORD_SIZE) 
+    rLib.badRequest(errorHandler, {msg: `size of inserted resource may not exceed ${MAX_RECORD_SIZE}`})
+  else
+    this.executeInTransaction(errorHandler, client, release, query, [id, etag, recordString], pgResult => {
+      if (pgResult.rowCount == 1)
+        callback()    
+      else
+        this.rollbackTransaction(client, release, function() {
+          rLib.notFound(errorHandler, {msg: `could not create resource with id ${id}`})
+        })
+    })
+}
+
+eventProducer.prototype.createResourceThen = function(req, errorHandler, resourceID, resource, eventTopic, changeEvent, callback) {
+  this.beginTransaction(errorHandler, (client, release) => {
+    changeEvent.time = new Date().toISOString()
+    resource.creator = lib.getUserFromReq(req)
+    resource.created = changeEvent.time
+    this.insertAuditEvent(errorHandler, client, release, eventTopic, changeEvent, (eventRecord) => {
+      let eventSequenceNumber = eventRecord.index
+      // The following line is a critical line. It ensures that the resource stored on disk includes the
+      // event index of the corresponding audit event. This allows clients to know reliably whether
+      // one version of the resource is more or less recent than any other version.
+      resource.eventSequenceNumber = changeEvent.sequenceNumber
+      resource.etag = `e${(++eventSequenceNumber).toString()}`
+      this.insrtResource(errorHandler, client, release, resourceID, resource, resource.etag, () => {
+        this.commitTransaction(client, release, (err) => {
+          this.tellConsumers(req, eventRecord, function(){
+            callback(eventRecord)
+          })
+        })
+      })
+    })
+  })
+}
+
+eventProducer.prototype.deleteRecord = function(errorHandler, client, release, id, callback) {
+  var query = `DELETE FROM "${this.tableName}" WHERE "${this.idColumnName}" = $1 RETURNING *`
+  this.executeInTransaction(errorHandler, client, release, query, [id], function (pgResult) {
+    if (pgResult.rowCount == 1)
+      callback(pgResult.rows[0])
+    else {
+      client.query('ROLLBACK', release)
+      rLib.notFound(errorHandler, {msg: `resource with id ${id} does not exist`})
+    }     
+  })
+}
+
+eventProducer.prototype.deleteResourceThen = function(req, errorHandler, id, eventTopic, changeEvent, callback) {
+  this.beginTransaction(errorHandler, (client, release) => {
+    this.deleteRecord(errorHandler, client, release, id, (resourceRecord) => {
+      changeEvent.resource = resourceRecord.data
+      this.insertAuditEvent(errorHandler, client, release, eventTopic, changeEvent, (eventRecord) => {
+        changeEvent.resource.eventSequenceNumber = changeEvent.sequenceNumber
+        this.commitTransaction(client, release, (err) => {
+          this.tellConsumers(req, eventRecord, function(){
+            callback(resourceRecord, eventRecord)
+          })
+        })
+      })
+    })
+  })
+}
+
 eventProducer.prototype.queryAndStoreEvent = function(req, query, queryArgs, eventTopic, eventData, callback) {
   // We use a transaction here, since its PG and we can. In fact it would be OK to create the event record first and then do the update.
   // If the update failed we would have created an unnecessary event record, which is not ideal, but probably harmless.
@@ -173,7 +388,6 @@ eventProducer.prototype.queryAndStoreEvent = function(req, query, queryArgs, eve
     if (err)
       callback(err)
     else
-      // console.log('query:', query)
       client.query('BEGIN', function(err) {
         if(err) {
           client.query('ROLLBACK', release)
