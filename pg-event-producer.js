@@ -257,7 +257,7 @@ eventProducer.prototype.selectForUpdateDo = function(errorHandler, client, relea
   })
 }
 
-eventProducer.prototype.updateRecord = function(errorHandler, client, release, id, record, etag, ifMatch, callback) {
+eventProducer.prototype.updateResource = function(errorHandler, client, release, id, record, etag, ifMatch, callback) {
   var query
   var recordString = JSON.stringify(record)
   if (recordString.length > MAX_RECORD_SIZE) 
@@ -300,7 +300,7 @@ eventProducer.prototype.updateResourceThen = function(req, errorHandler, subject
       // one version of the resource is more or less recent than any other version.
       resource.eventSequenceNumber = eventSequenceNumber
       resource.etag = `e${(++eventSequenceNumber).toString()}`
-      this.updateRecord(errorHandler, client, release, subject, resource, resource.etag, ifMatch, () => {
+      this.updateResource(errorHandler, client, release, subject, resource, resource.etag, ifMatch, () => {
         this.commitTransaction(client, release, (err) => {
           this.tellConsumers(req, eventRecord, function(){
             callback(eventRecord)
