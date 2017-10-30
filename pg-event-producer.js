@@ -258,13 +258,19 @@ eventProducer.prototype.selectForUpdateDo = function(errorHandler, client, relea
 }
 
 eventProducer.prototype.updateResource = function(errorHandler, client, release, id, record, etag, ifMatch, callback) {
-  var query
+  var query, params
   var recordString = JSON.stringify(record)
   if (recordString.length > MAX_RECORD_SIZE) 
     rLib.badRequest(errorHandler, {msg: `size of patched resource may not exceed ${MAX_RECORD_SIZE}`})
-  else
-    query = `UPDATE "${this.tableName}" SET (etag, data) = ($1, $2) WHERE "${this.idColumnName}" = $3 AND etag = $4`
-    this.executeInTransaction(errorHandler, client, release, query, [etag, recordString, id, ifMatch], pgResult => {
+  else {
+    if (ifMatch != null) {
+      query = `UPDATE "${this.tableName}" SET (etag, data) = ($1, $2) WHERE "${this.idColumnName}" = $3 AND etag = $4`
+      params = [etag, recordString, id, ifMatch]
+    } else {
+      query = `UPDATE "${this.tableName}" SET (etag, data) = ($1, $2) WHERE "${this.idColumnName}" = $3`
+      params = [etag, recordString, id]      
+    }
+    this.executeInTransaction(errorHandler, client, release, query, params, pgResult => {
       if (pgResult.rowCount == 1)
         callback(record.etag)    
       else
@@ -272,6 +278,7 @@ eventProducer.prototype.updateResource = function(errorHandler, client, release,
           rLib.notFound(errorHandler, {msg: `resource with id ${id} and etag ${ifMatch} does not exist`})
         })
     })
+  }
 }
 
 eventProducer.prototype.insertAuditEvent = function(errorHandler, client, release, eventTopic, changeEvent, callback) {
