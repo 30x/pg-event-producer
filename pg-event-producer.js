@@ -1,7 +1,6 @@
 'use strict'
 const http = require('http')
 const util = require('util')
-const rLib = require('@apigee/response-helper-functions')
 const lib = require('@apigee/http-helper-functions')
 const keepAliveAgent = new http.Agent({ keepAlive: true });
 
@@ -178,12 +177,12 @@ function sendEventThen(serverReq, event, host, callback) {
   let pool = this.pool
   pool.connect(function(err, client, release) {
     if (err)
-      rLib.internalError(errorHandler, {msg: `unable to get postgres connection`, err: err, time: time})
+      lib.internalError(errorHandler, {msg: `unable to get postgres connection`, err: err, time: time})
     else
       client.query('BEGIN', function(err) {
         if(err) {
           client.query('ROLLBACK', release)
-          rLib.internalError(errorHandler, {msg: `unable to beginTransaction postgres transaction`, err: err})
+          lib.internalError(errorHandler, {msg: `unable to beginTransaction postgres transaction`, err: err})
         } else 
           callback(client, release)
       })
@@ -226,11 +225,11 @@ function sendEventThen(serverReq, event, host, callback) {
         if (err.code == 23505) {
           var errMsg = `duplicate key value violates unique constraint ${err.constraint}`
           this.log(errMsg)
-          rLib.duplicate(errorHandler, {msg: errMsg})
+          lib.duplicate(errorHandler, {msg: errMsg})
         } else { 
           var errRslt = {msg: `unable to execute write query`, query: query, err: err, params: params}
           this.log('pg-storage:executeWriteQuery', errRslt)
-          rLib.internalError(errorHandler, errRslt)
+          lib.internalError(errorHandler, errRslt)
         }
       })
     else
@@ -252,7 +251,7 @@ eventProducer.prototype.selectForUpdateDo = function(errorHandler, client, relea
       callback(pgResult.rows[0].data, pgResult.rows[0].id, pgResult.rows[0].etag)
     else
       this.rollbackTransaction(client, release, () => {
-        rLib.notFound(errorHandler, {msg: `resource with id ${id} and etag ${ifMatch} does not exist`})
+        lib.notFound(req, errorHandler, {msg: `resource with id ${id} and etag ${ifMatch} does not exist`})
       })
   })
 }
@@ -261,7 +260,7 @@ eventProducer.prototype.updateResource = function(errorHandler, client, release,
   var query, params
   var recordString = JSON.stringify(record)
   if (recordString.length > MAX_RECORD_SIZE) 
-    rLib.badRequest(errorHandler, {msg: `size of patched resource may not exceed ${MAX_RECORD_SIZE}`})
+    lib.badRequest(null, errorHandler, {msg: `size of patched resource may not exceed ${MAX_RECORD_SIZE}`})
   else {
     if (ifMatch != null) {
       query = `UPDATE "${this.tableName}" SET (etag, data) = ($1, $2) WHERE "${this.idColumnName}" = $3 AND etag = $4`
@@ -275,7 +274,7 @@ eventProducer.prototype.updateResource = function(errorHandler, client, release,
         callback(record.etag)    
       else
         this.rollbackTransaction(client, release, function() {
-          rLib.notFound(errorHandler, {msg: `resource with id ${id} and etag ${ifMatch} does not exist`})
+          lib.notFound(null, errorHandler, {msg: `resource with id ${id} and etag ${ifMatch} does not exist`})
         })
     })
   }
@@ -290,7 +289,7 @@ eventProducer.prototype.insertAuditEvent = function(errorHandler, client, releas
       callback(pgResult.rows[0])    
     } else
       this.rollbackTransaction(client, release, function() {
-        rLib.notFound(errorHandler, {msg: 'could not insert event record'})
+        lib.notFound(null, errorHandler, {msg: 'could not insert event record'})
       })
   })
 }
@@ -322,14 +321,14 @@ eventProducer.prototype.insertResource = function(errorHandler, client, release,
   var query = `INSERT INTO "${this.tableName}" (${this.idColumnName}, etag, data) values ($1, $2, $3)`
   let recordString = JSON.stringify(record)
   if (recordString.length > MAX_RECORD_SIZE) 
-    rLib.badRequest(errorHandler, {msg: `size of inserted resource may not exceed ${MAX_RECORD_SIZE}`})
+    lib.badRequest(errorHandler, {msg: `size of inserted resource may not exceed ${MAX_RECORD_SIZE}`})
   else
     this.executeInTransaction(errorHandler, client, release, query, [id, etag, recordString], pgResult => {
       if (pgResult.rowCount == 1)
         callback()    
       else
         this.rollbackTransaction(client, release, function() {
-          rLib.notFound(errorHandler, {msg: `could not create resource with id ${id}`})
+          lib.notFound(null, errorHandler, {msg: `could not create resource with id ${id}`})
         })
     })
 }
@@ -364,7 +363,7 @@ eventProducer.prototype.deleteRecord = function(errorHandler, client, release, i
       callback(pgResult.rows[0])
     else {
       client.query('ROLLBACK', release)
-      rLib.notFound(errorHandler, {msg: `resource with id ${id} does not exist`})
+      lib.notFound(null, errorHandler, {msg: `resource with id ${id} does not exist`})
     }     
   })
 }
